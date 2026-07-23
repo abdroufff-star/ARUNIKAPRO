@@ -1,0 +1,1395 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARUNIKA PRO</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- LIBRARY UNTUK EXPORT PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // =======================================================================
+        // PASTE LINK URL DARI GOOGLE APPS SCRIPT ANDA DI ANTARA TANDA KUTIP INI:
+        const API_URL = "https://script.google.com/macros/s/AKfycbwMe";
+        // =======================================================================
+
+        const { useState, useEffect, useMemo } = React;
+
+        const formatRupiah = (number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(number);
+        const parseInputNumber = (val) => val ? val.toString().replace(/[^0-9]/g, '') : '';
+        const formatInputNumber = (val) => val ? val.toString().replace(/[^0-9]/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, ".") : '';
+
+        const formatPhoneWA = (phone) => {
+            if (!phone) return '';
+            return phone.startsWith('0') ? '62' + phone.substring(1) : phone;
+        };
+
+        // HELPER UNTUK NOMOR NOTA BERURUTAN
+        const displayNota = (inv) => {
+            if (inv && inv.notaSeq) return `INV-${inv.notaSeq.toString().padStart(5, '0')}`;
+            if (inv && inv.id) return `INV-${inv.id.toString().slice(-6)}`;
+            return 'INV-00000';
+        };
+
+        function App() {
+            const [isLoading, setIsLoading] = useState(true);
+            const [toast, setToast] = useState(null); 
+
+            const [currentUser, setCurrentUser] = useState(() => {
+                const saved = localStorage.getItem('arunika_current_user');
+                return saved ? JSON.parse(saved) : null;
+            });
+            
+            const [users, setUsers] = useState([
+                { id: 1, username: 'owner', password: '123', role: 'Owner' },
+                { id: 2, username: 'karyawan', password: '123', role: 'Karyawan' }
+            ]);
+            
+            const [products, setProducts] = useState([]);
+            const [customers, setCustomers] = useState([]);
+            const [invoices, setInvoices] = useState([]);
+            const [cashBook, setCashBook] = useState([]);
+            const [personalCashBook, setPersonalCashBook] = useState([]);
+
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [detailModal, setDetailModal] = useState(null);
+            
+            const [payModal, setPayModal] = useState(null);
+            const [payMethod, setPayMethod] = useState('CASH');
+            const [cashFilter, setCashFilter] = useState('Semua');
+
+            const [loginUser, setLoginUser] = useState('');
+            const [loginPass, setLoginPass] = useState('');
+
+            // Form Pelanggan
+            const [custName, setCustName] = useState('');
+            const [custPhone, setCustPhone] = useState('');
+            const [custAddress, setCustAddress] = useState('');
+            const [editCustId, setEditCustId] = useState(null);
+
+            // Form Broadcast
+            const [showBroadcast, setShowBroadcast] = useState(false);
+            const [broadcastMsg, setBroadcastMsg] = useState('Halo Kak,\n\nKami dari *ARUNIKA Creative* sedang mengadakan PROMO spesial lho!\n\nDapatkan diskon khusus untuk cetak kebutuhan bisnis dan pribadimu.\n\nYuk buruan diorder sebelum kehabisan! Terima kasih 🙏');
+
+            // Form Produk (DIPERBARUI)
+            const [prodName, setProdName] = useState('');
+            const [prodPrice, setProdPrice] = useState('');
+            const [prodModal, setProdModal] = useState('');
+            const [prodUnit, setProdUnit] = useState('Pcs'); // State Satuan Produk
+            const [editProdId, setEditProdId] = useState(null); // State Edit Produk
+
+            // Form Invoice
+            const [invCustomer, setInvCustomer] = useState('');
+            const [invPhone, setInvPhone] = useState('');
+            const [invItems, setInvItems] = useState([]);
+            const [selProd, setSelProd] = useState('');
+            const [selQty, setSelQty] = useState('1');
+            const [selType, setSelType] = useState('Pcs');
+            const [selPanjang, setSelPanjang] = useState('');
+            const [selLebar, setSelLebar] = useState('');
+            const [selHarga, setSelHarga] = useState('');
+            const [selModal, setSelModal] = useState('');
+            const [selOngkosDesain, setSelOngkosDesain] = useState('');
+            const [invDp, setInvDp] = useState('');
+            
+            // Form Kas
+            const [cashDesc, setCashDesc] = useState('');
+            const [cashAmount, setCashAmount] = useState('');
+            const [cashType, setCashType] = useState('Keluar');
+            const [cashSource, setCashSource] = useState('CASH');
+
+            const [pcDesc, setPcDesc] = useState('');
+            const [pcAmount, setPcAmount] = useState('');
+            const [pcType, setPcType] = useState('Keluar'); 
+            const [pcSync, setPcSync] = useState('Pribadi'); 
+            const [pcWallet, setPcWallet] = useState('CASH'); 
+
+            const [rekapSearch, setRekapSearch] = useState('');
+            const [rekapMonth, setRekapMonth] = useState('Semua');
+            const [rekapStatus, setRekapStatus] = useState('Semua');
+
+            useEffect(() => {
+                const localData = {
+                    products: JSON.parse(localStorage.getItem('arunika_products')) || [],
+                    customers: JSON.parse(localStorage.getItem('arunika_customers')) || [],
+                    invoices: JSON.parse(localStorage.getItem('arunika_invoices')) || [],
+                    cashbook: JSON.parse(localStorage.getItem('arunika_cashbook')) || [],
+                    personalcash: JSON.parse(localStorage.getItem('arunika_personal_cash')) || []
+                };
+
+                setProducts(localData.products);
+                setCustomers(localData.customers);
+                setInvoices(localData.invoices);
+                setCashBook(localData.cashbook);
+                setPersonalCashBook(localData.personalcash);
+
+                if (API_URL === "ISI_DENGAN_LINK_API_GOOGLE_APPS_SCRIPT_ANDA_DI_SINI" || API_URL === "") {
+                    setIsLoading(false);
+                    return;
+                }
+
+                fetch(API_URL)
+                    .then(res => res.json())
+                    .then(data => {
+                        if(data.users && data.users.length > 0) setUsers(data.users);
+                        if(data.products) setProducts(data.products);
+                        if(data.customers) setCustomers(data.customers);
+                        if(data.invoices) setInvoices(data.invoices);
+                        if(data.cashbook) setCashBook(data.cashbook);
+                        setIsLoading(false);
+                    })
+                    .catch(err => {
+                        showToast('Database belum siap, beralih ke Mode Offline.', 'error');
+                        setIsLoading(false);
+                    });
+            }, []);
+
+            const showToast = (msg, type = 'error') => {
+                setToast({ msg, type });
+                setTimeout(() => setToast(null), 3000);
+            };
+
+            const syncData = (tableName, updatedData) => {
+                if(tableName === 'customers') setCustomers(updatedData);
+                if(tableName === 'products') setProducts(updatedData);
+                if(tableName === 'invoices') setInvoices(updatedData);
+                if(tableName === 'cashbook') setCashBook(updatedData);
+                if(tableName === 'personalcash') setPersonalCashBook(updatedData);
+
+                localStorage.setItem('arunika_' + tableName, JSON.stringify(updatedData));
+            };
+
+            const getSaldo = (source) => cashBook.filter(c => c.source === source).reduce((acc, curr) => curr.type === 'Masuk' ? acc + curr.amount : acc - curr.amount, 0);
+            const getTotalRealMoney = () => getSaldo('CASH') + getSaldo('BCA') + getSaldo('BRI');
+            const getPersonalSaldo = () => personalCashBook.reduce((acc, curr) => curr.type === 'Masuk' ? acc + curr.amount : acc - curr.amount, 0);
+            
+            const getTotalOmset = () => invoices.reduce((acc, inv) => acc + inv.total, 0);
+            const getTotalModal = () => invoices.reduce((acc, inv) => acc + (inv.totalModal || 0), 0);
+            const getLabaKotor = () => getTotalOmset() - getTotalModal();
+
+            const availableMonths = useMemo(() => {
+                const months = invoices.map(inv => {
+                    const parts = inv.date.split('/');
+                    if(parts.length === 3) return `${parts[1]}/${parts[2]}`; 
+                    return null;
+                }).filter(Boolean);
+                return [...new Set(months)];
+            }, [invoices]);
+
+            const filteredRekapInvoices = useMemo(() => {
+                return invoices.filter(inv => {
+                    const searchMatch = inv.customer.toLowerCase().includes(rekapSearch.toLowerCase()) || 
+                                      displayNota(inv).toLowerCase().includes(rekapSearch.toLowerCase());
+                    
+                    let monthMatch = true;
+                    if (rekapMonth !== 'Semua') {
+                        const parts = inv.date.split('/');
+                        if(parts.length === 3) {
+                            const invMonth = `${parts[1]}/${parts[2]}`;
+                            monthMatch = (invMonth === rekapMonth);
+                        } else {
+                            monthMatch = false; 
+                        }
+                    }
+
+                    let statusMatch = true;
+                    if (rekapStatus === 'Lunas') statusMatch = (inv.sisa === 0);
+                    else if (rekapStatus === 'Menunggak') statusMatch = (inv.sisa > 0);
+
+                    return searchMatch && monthMatch && statusMatch;
+                });
+            }, [invoices, rekapSearch, rekapMonth, rekapStatus]);
+
+            const totalOmsetRekap = filteredRekapInvoices.reduce((sum, inv) => sum + inv.total, 0);
+            const totalSisaRekap = filteredRekapInvoices.reduce((sum, inv) => sum + inv.sisa, 0);
+            
+            const downloadKasPDF = () => {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+
+                doc.setFontSize(22);
+                doc.setTextColor(245, 166, 35); 
+                doc.text("ARUNIKA PRINT POS", 14, 20);
+                
+                doc.setFontSize(14);
+                doc.setTextColor(50, 50, 50);
+                doc.text(`Laporan Buku Kas (${cashFilter === 'Semua' ? 'Semua Sumber' : cashFilter})`, 14, 30);
+                
+                doc.setFontSize(10);
+                doc.setTextColor(100, 100, 100);
+                doc.text(`Waktu Cetak: ${new Date().toLocaleString('id-ID')}`, 14, 36);
+
+                doc.setFontSize(11);
+                doc.setTextColor(0, 0, 0);
+                doc.text(`Saldo Laci (CASH): ${formatRupiah(getSaldo('CASH'))}`, 14, 46);
+                doc.text(`Saldo BCA: ${formatRupiah(getSaldo('BCA'))}`, 85, 46);
+                doc.text(`Saldo BRI: ${formatRupiah(getSaldo('BRI'))}`, 145, 46);
+
+                const tableColumn = ["Tanggal", "Keterangan", "Sumber", "Jenis", "Nominal"];
+                const tableRows = [];
+
+                const filteredData = cashBook.filter(cb => cashFilter === 'Semua' || cb.source === cashFilter);
+
+                filteredData.forEach(cb => {
+                    const nominalData = cb.type === 'Masuk' ? `+ ${formatRupiah(cb.amount)}` : `- ${formatRupiah(cb.amount)}`;
+                    const rowData = [cb.date, cb.desc, cb.source, cb.type, nominalData];
+                    tableRows.push(rowData);
+                });
+
+                doc.autoTable({
+                    head: [tableColumn],
+                    body: tableRows,
+                    startY: 55,
+                    theme: 'striped',
+                    headStyles: { fillColor: [245, 166, 35], textColor: [255,255,255] },
+                    styles: { fontSize: 9 },
+                    columnStyles: { 4: { halign: 'right', fontStyle: 'bold' } }
+                });
+
+                doc.save(`Laporan_Kas_Arunika_${Date.now()}.pdf`);
+                showToast('Laporan PDF berhasil diunduh!', 'success');
+            };
+
+            const handleLogin = (e) => {
+                e.preventDefault();
+                const inputUser = loginUser.toLowerCase();
+                const user = users.find(u => u.username === inputUser && u.password === loginPass);
+                
+                if (user) {
+                    setCurrentUser(user);
+                    localStorage.setItem('arunika_current_user', JSON.stringify(user));
+                } else {
+                    showToast('Username atau password salah!', 'error');
+                }
+            };
+
+            const handleLogout = () => {
+                setCurrentUser(null);
+                localStorage.removeItem('arunika_current_user');
+            };
+
+            const handleAddCustomer = () => {
+                if(!custName || !custPhone) return showToast('Nama dan No WA wajib diisi!');
+                
+                if (editCustId) {
+                    const updated = customers.map(c => c.id === editCustId ? { ...c, name: custName, phone: custPhone, address: custAddress } : c);
+                    syncData('customers', updated);
+                    showToast('Data pelanggan berhasil diubah!', 'success');
+                } else {
+                    const newCust = { id: Date.now(), name: custName, phone: custPhone, address: custAddress };
+                    syncData('customers', [...customers, newCust]);
+                    showToast('Pelanggan berhasil ditambahkan!', 'success');
+                }
+                
+                setCustName(''); setCustPhone(''); setCustAddress(''); setEditCustId(null);
+            };
+
+            const handleEditCustomerClick = (c) => {
+                setCustName(c.name);
+                setCustPhone(c.phone);
+                setCustAddress(c.address);
+                setEditCustId(c.id);
+                window.scrollTo({ top: 0, behavior: 'smooth' }); 
+            };
+
+            const handleDeleteCustomer = (id) => {
+                if(window.confirm('Yakin ingin menghapus pelanggan ini?')) {
+                    syncData('customers', customers.filter(c => c.id !== id));
+                    showToast('Pelanggan berhasil dihapus!', 'success');
+                }
+            };
+
+            // FUNGSI PRODUK (TAMBAH, EDIT, HAPUS)
+            const handleAddProduct = () => {
+                if(!prodName || !prodPrice) return showToast('Isi nama dan harga jual!');
+                if (editProdId) {
+                    const updated = products.map(p => p.id === editProdId ? { ...p, name: prodName, unit: prodUnit, modal: Number(prodModal), price: Number(prodPrice) } : p);
+                    syncData('products', updated);
+                    showToast('Produk berhasil diubah!', 'success');
+                } else {
+                    syncData('products', [...products, {id: Date.now(), name: prodName, unit: prodUnit, modal: Number(prodModal), price: Number(prodPrice)}]);
+                    showToast('Produk berhasil ditambahkan!', 'success');
+                }
+                setProdName(''); setProdModal(''); setProdPrice(''); setProdUnit('Pcs'); setEditProdId(null);
+            };
+
+            const handleEditProductClick = (p) => {
+                setProdName(p.name);
+                setProdModal(p.modal);
+                setProdPrice(p.price);
+                setProdUnit(p.unit || 'Pcs');
+                setEditProdId(p.id);
+                window.scrollTo({ top: 0, behavior: 'smooth' }); 
+            };
+
+            const handleDeleteProduct = (id) => {
+                if(window.confirm('Yakin ingin menghapus produk ini?')) {
+                    syncData('products', products.filter(p => p.id !== id));
+                    showToast('Produk berhasil dihapus!', 'success');
+                }
+            };
+
+            const handleInvCustomerChange = (e) => {
+                const val = e.target.value;
+                setInvCustomer(val);
+                
+                const found = customers.find(c => c.name.toLowerCase() === val.toLowerCase());
+                if (found) {
+                    setInvPhone(found.phone); 
+                }
+            };
+
+            const addToCart = () => {
+                if (!selProd || !selQty || !selHarga || !selModal) return showToast('Pilih produk, isi Harga Jual, Harga Modal, dan Qty!');
+                const p = products.find(x => x.id.toString() === selProd);
+                if (!p) return;
+
+                let finalQty = Number(selQty);
+                let subName = p.name;
+                let hargaCetak = Number(selHarga) * finalQty;
+                let subModal = Number(selModal) * finalQty;
+                let ongkosDesain = Number(selOngkosDesain || 0);
+
+                if (selType === 'Meter') {
+                    if (!selPanjang || !selLebar) return showToast('Isi nilai Panjang dan Lebar!');
+                    const luas = Number(selPanjang) * Number(selLebar);
+                    subName = `${p.name} (${selPanjang}m x ${selLebar}m)`;
+                    hargaCetak = luas * Number(selHarga) * finalQty;
+                    subModal = luas * Number(selModal) * finalQty;
+                }
+
+                let totalSub = hargaCetak + ongkosDesain;
+                let internalName = ongkosDesain > 0 ? `${subName} (+Desain)` : subName;
+
+                setInvItems([...invItems, {
+                    id: Date.now(), 
+                    name: subName, 
+                    internalName: internalName, 
+                    baseName: p.name, 
+                    qty: finalQty, 
+                    type: selType, 
+                    p: selPanjang, 
+                    l: selLebar, 
+                    price: Number(selHarga), 
+                    modal: Number(selModal), 
+                    total: totalSub, 
+                    totalModal: subModal
+                }]);
+
+                setSelQty('1'); setSelPanjang(''); setSelLebar(''); setSelOngkosDesain(''); setSelProd(''); 
+            };
+
+            const removeFromCart = (idToRemove) => {
+                setInvItems(invItems.filter(item => item.id !== idToRemove));
+                showToast('Barang dihapus dari daftar.', 'success');
+            };
+
+            const handlePelunasan = () => {
+                if(!payModal) return;
+                const nominalSisa = payModal.sisa;
+                
+                const updatedInvoices = invoices.map(inv => {
+                    if (inv.id === payModal.id) {
+                        return { ...inv, dp: inv.total, sisa: 0 };
+                    }
+                    return inv;
+                });
+                syncData('invoices', updatedInvoices);
+
+                const newCash = {
+                    id: Date.now(),
+                    date: new Date().toLocaleDateString('id-ID'),
+                    desc: `Pelunasan Nota ${displayNota(payModal)} (${payModal.customer})`,
+                    amount: nominalSisa,
+                    type: 'Masuk',
+                    source: payMethod
+                };
+                syncData('cashbook', [newCash, ...cashBook]);
+
+                setPayModal(null);
+                setDetailModal(null); 
+                showToast(`Pembayaran Rp ${nominalSisa.toLocaleString('id-ID')} via ${payMethod} berhasil dicatat!`, 'success');
+            };
+
+            const printA6Nota = (invoice) => {
+                let printContent = `
+                <html>
+                <head>
+                    <title>Nota - ${displayNota(invoice)}</title>
+                    <style>
+                        @page { size: A6; margin: 0; }
+                        body { font-family: 'Arial', sans-serif; margin: 0; padding: 20px; width: 105mm; height: 148mm; box-sizing: border-box; }
+                        h1 { font-size: 24px; color: #F5A623; margin: 0; text-align: center;}
+                        .info { font-size: 10px; margin-bottom: 10px; display: flex; justify-content: space-between;}
+                        table { width: 100%; font-size: 10px; border-collapse: collapse; margin-bottom: 10px; }
+                        th, td { border: 1px solid #000; padding: 4px; text-align: left; }
+                        th { background: #eee; }
+                        .total { font-size: 14px; font-weight: bold; text-align: right; }
+                    </style>
+                </head>
+                <body>
+                    <h1>ARUNIKA</h1>
+                    <div style="text-align: center; font-size: 8px; margin-bottom: 15px;">Percetakan & Desain Grafis</div>
+                    <div class="info">
+                        <div>Untuk: <b>${invoice.customer}</b><br>Tgl: ${invoice.date}</div>
+                        <div>Nota: ${displayNota(invoice)}</div>
+                    </div>
+                    <table>
+                        <tr><th>Qty</th><th>Item</th><th>Total</th></tr>
+                        ${invoice.items.map(item => `<tr><td style="text-align:center;">${item.qty}</td><td>${item.name}</td><td style="text-align:right;">${formatRupiah(item.total)}</td></tr>`).join('')}
+                    </table>
+                    <div class="total">TOTAL: ${formatRupiah(invoice.total)}</div>
+                    <div style="text-align: right; font-size: 10px;">DIBAYAR: ${formatRupiah(invoice.dp)} <br> SISA: ${formatRupiah(invoice.sisa)}</div>
+                    <div style="margin-top: 30px; text-align: center; font-size: 10px;">${invoice.sisa > 0 ? '*Belum Lunas' : '*Lunas - Terima Kasih!'}</div>
+                </body>
+                </html>`;
+                
+                const printWindow = window.open('', '_blank');
+                printWindow.document.write(printContent);
+                printWindow.document.close();
+                printWindow.focus();
+                setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
+            };
+
+            const sendWAInvoice = (invoice) => {
+                let phone = formatPhoneWA(invoice.phone);
+                if (!phone) return showToast('Nomor HP pelanggan tidak ada!');
+                
+                let itemList = invoice.items.map(it => `- ${it.qty}x ${it.name}`).join('\n');
+                
+                let msg = `Nota No: ${displayNota(invoice)}\n${itemList}\n\nTotal: *${formatRupiah(invoice.total)}*\n\nPastikan pesanan Anda sudah benar. Dengan melakukan pembayaran, pelanggan telah SETUJU atas Nota yang diterbitkan.\n\nbisa segera lakukan pembayaran via:\nBCA : 3301144677 a/n Abdur Rouf\nBRI : 628801016232530 a/n Abdur Rouf / QRISS\n\nTerima kasih atas kerjasamanya.`;
+                
+                window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+            };
+
+            const sendWAReady = (invoice) => {
+                let phone = formatPhoneWA(invoice.phone);
+                if (!phone) return showToast('Nomor HP pelanggan tidak ada!');
+                
+                let itemList = invoice.items.map(it => `- ${it.qty}x ${it.name}`).join('\n');
+                let msg = '';
+                
+                if (invoice.sisa === 0) {
+                    msg = `Pesanan Cetak/Barang di ARUNIKA\nNota No: ${displayNota(invoice)}\n${itemList}\n\ntelah selesai.\n\nAbaikan bila telah diambil, terima kasih.`;
+                } else {
+                    msg = `Pesanan Cetak/Barang di ARUNIKA\nNota No: ${displayNota(invoice)}\n${itemList}\n\ntelah selesai.\n\n*Total Tagihan:* ${formatRupiah(invoice.total)}\n*Sudah Dibayar/DP:* ${formatRupiah(invoice.dp)}\n*SISA TAGIHAN:* ${formatRupiah(invoice.sisa)}\n\nMohon untuk menyiapkan pelunasan saat pengambilan barang, atau dapat juga melalui transfer.\n\nTerima kasih! 🙏`;
+                }
+
+                window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+            };
+
+            const sendWAPayment = (invoice) => {
+                let phone = formatPhoneWA(invoice.phone);
+                if (!phone) return showToast('Nomor HP pelanggan tidak ada!');
+                
+                let msg = `Halo Kak *${invoice.customer}*,\n\nMohon maaf mengganggu waktunya. Kami dari *ARUNIKA Creative* ingin mengingatkan terkait sisa tagihan pesanan kakak yang belum lunas.\n\n*Nota:* ${displayNota(invoice)}\n*Total Tagihan:* ${formatRupiah(invoice.total)}\n*Sudah Dibayar/DP:* ${formatRupiah(invoice.dp)}\n*SISA TAGIHAN:* ${formatRupiah(invoice.sisa)}\n\nMohon untuk dapat segera diselesaikan pembayarannya via Transfer/Cash. Jika sudah transfer, mohon kirimkan buktinya ya Kak. Terima kasih! 🙏`;
+                window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+            };
+
+            if (isLoading) {
+                return (
+                    <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-4">
+                        <div className="w-16 h-16 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                        <h2 className="text-xl font-bold text-gray-700">Menyiapkan Aplikasi...</h2>
+                    </div>
+                );
+            }
+
+            if (!currentUser) {
+                return (
+                    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 relative">
+                        <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
+                            <div className="text-center mb-8">
+                                <h1 className="text-4xl font-black text-amber-500 mb-2 tracking-widest">ARUNIKA</h1>
+                                <p className="text-gray-500 font-medium">Sistem Manajemen Percetakan</p>
+                            </div>
+                            <form onSubmit={handleLogin} className="space-y-5">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">Username (owner)</label>
+                                    <input type="text" value={loginUser} onChange={(e) => setLoginUser(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber-500" required />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">Password (123)</label>
+                                    <input type="password" value={loginPass} onChange={(e) => setLoginPass(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber-500" required />
+                                </div>
+                                <button type="submit" className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-4 rounded-xl transition shadow-lg shadow-amber-500/30">
+                                    MASUK
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                );
+            }
+
+            let totalAll = invItems.reduce((acc, curr) => acc + curr.total, 0);
+            let subModalItems = invItems.reduce((acc, curr) => acc + curr.totalModal, 0);
+            const filteredCashBook = cashBook.filter(cb => cashFilter === 'Semua' || cb.source === cashFilter);
+
+            return (
+                <div className="min-h-screen bg-slate-50 flex relative">
+                    {toast && (
+                        <div className="fixed top-5 left-1/2 transform -translate-x-1/2 z-[100] px-6 py-3 rounded-full shadow-2xl text-white font-bold bg-amber-600 animate-bounce">
+                            {toast.msg}
+                        </div>
+                    )}
+
+                    {payModal && (
+                        <div className="fixed inset-0 bg-black/60 z-[160] flex items-center justify-center p-4 backdrop-blur-sm">
+                            <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+                                <h3 className="font-bold text-lg mb-2 text-slate-800">Pelunasan Tagihan</h3>
+                                <p className="text-sm text-slate-500 mb-4">Pelanggan: <span className="font-bold text-slate-800">{payModal.customer}</span></p>
+                                
+                                <div className="bg-red-50 border border-red-100 rounded-xl p-4 mb-4 text-center">
+                                    <p className="text-sm text-red-500 font-bold mb-1">Sisa Tagihan:</p>
+                                    <p className="text-3xl font-black text-red-600">{formatRupiah(payModal.sisa)}</p>
+                                </div>
+
+                                <label className="block mb-2 text-sm font-bold text-slate-700">Metode Pembayaran (Masuk Ke):</label>
+                                <select value={payMethod} onChange={e=>setPayMethod(e.target.value)} className="w-full p-3 border rounded-xl mb-6 bg-slate-50 focus:ring-2 focus:ring-amber-500 outline-none">
+                                    <option value="CASH">Laci Kasir (CASH)</option>
+                                    <option value="BCA">Transfer BCA</option>
+                                    <option value="BRI">Transfer BRI</option>
+                                </select>
+                                
+                                <div className="flex gap-3">
+                                    <button onClick={()=>setPayModal(null)} className="flex-1 p-3 bg-gray-200 hover:bg-gray-300 text-slate-700 rounded-xl font-bold transition">Batal</button>
+                                    <button onClick={handlePelunasan} className="flex-1 p-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold shadow-lg shadow-green-500/30 transition">Bayar Lunas</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {showBroadcast && (
+                        <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm">
+                            <div className="bg-white rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+                                <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-slate-50">
+                                    <h2 className="text-xl font-bold text-slate-800">📢 Kirim Broadcast Promo</h2>
+                                    <button onClick={() => setShowBroadcast(false)} className="text-red-500 font-bold hover:bg-red-50 p-2 rounded-lg transition">Tutup ✕</button>
+                                </div>
+                                
+                                <div className="p-6 overflow-y-auto flex-1 flex flex-col md:flex-row gap-6">
+                                    <div className="w-full md:w-1/2">
+                                        <label className="block mb-2 font-bold text-slate-700">Isi Pesan Promo:</label>
+                                        <textarea 
+                                            value={broadcastMsg} 
+                                            onChange={(e) => setBroadcastMsg(e.target.value)}
+                                            className="w-full p-3 border rounded-xl bg-slate-50 h-64 focus:ring-2 focus:ring-amber-500 outline-none"
+                                            placeholder="Ketik pesan promo Anda di sini..."
+                                        />
+                                        <p className="text-xs text-gray-500 mt-2">Gunakan *teks* untuk tebal, _teks_ untuk miring.</p>
+                                    </div>
+                                    <div className="w-full md:w-1/2">
+                                        <label className="block mb-2 font-bold text-slate-700">Daftar Pelanggan ({customers.length}):</label>
+                                        <div className="border rounded-xl h-64 overflow-y-auto bg-slate-50 p-2 space-y-2">
+                                            {customers.map(c => (
+                                                <div key={c.id} className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-slate-100">
+                                                    <div>
+                                                        <p className="font-bold text-sm text-slate-800">{c.name}</p>
+                                                        <p className="text-xs text-gray-500">{c.phone}</p>
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => window.open(`https://wa.me/${formatPhoneWA(c.phone)}?text=${encodeURIComponent(broadcastMsg)}`, '_blank')}
+                                                        className="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm"
+                                                    >
+                                                        Kirim WA
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            {customers.length === 0 && <p className="text-center text-gray-400 text-sm mt-10">Data pelanggan masih kosong.</p>}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {detailModal && (
+                        <div className="fixed inset-0 bg-black/60 z-[150] flex items-center justify-center p-4 backdrop-blur-sm">
+                            <div className="bg-white rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+                                <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-slate-50">
+                                    <h2 className="text-xl font-bold text-slate-800">Detail Nota: {displayNota(detailModal)}</h2>
+                                    <button onClick={() => setDetailModal(null)} className="text-red-500 font-bold hover:bg-red-50 p-2 rounded-lg transition">Tutup ✕</button>
+                                </div>
+                                
+                                <div className="p-6 overflow-y-auto flex-1">
+                                    <div className="flex justify-between mb-6 text-sm bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                                        <div><p className="text-gray-400 font-medium">Pelanggan</p><p className="font-black text-lg text-amber-600">{detailModal.customer}</p><p className="text-gray-500">{detailModal.phone}</p></div>
+                                        <div className="text-right"><p className="text-gray-400 font-medium">Tanggal Order</p><p className="font-bold text-slate-700">{detailModal.date}</p></div>
+                                    </div>
+                                    
+                                    <p className="font-bold mb-3 text-slate-700">Daftar Barang Pesanan:</p>
+                                    <div className="border rounded-xl overflow-hidden mb-6">
+                                        <table className="w-full text-sm">
+                                            <thead className="bg-slate-50 border-b"><tr><th className="p-3 text-center w-16">Qty</th><th className="p-3 text-left">Item / Spesifikasi</th><th className="p-3 text-right">Subtotal</th></tr></thead>
+                                            <tbody className="divide-y">
+                                                {detailModal.items.map((it, idx) => (
+                                                    <tr key={idx} className="hover:bg-slate-50"><td className="p-3 text-center font-bold bg-slate-50/50">{it.qty}</td><td className="p-3">{it.internalName || it.name}</td><td className="p-3 text-right font-bold text-slate-700">{formatRupiah(it.total)}</td></tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <div className="flex justify-between items-center bg-slate-800 text-white p-5 rounded-xl mb-6 shadow-md">
+                                        <div>
+                                            <p className="text-sm text-slate-300 font-medium mb-1">Status Keuangan:</p>
+                                            <div className="flex gap-4">
+                                                <div className="text-sm">Total: <span className="font-bold">{formatRupiah(detailModal.total)}</span></div>
+                                                <div className="text-sm text-green-400">Sudah Bayar: <span className="font-bold">{formatRupiah(detailModal.dp)}</span></div>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-sm text-slate-300 mb-1">Sisa Tagihan:</p>
+                                            <p className={`text-2xl font-black ${detailModal.sisa > 0 ? 'text-red-400' : 'text-green-400'}`}>{formatRupiah(detailModal.sisa)}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                        {detailModal.sisa > 0 && (
+                                            <>
+                                                <button onClick={() => setPayModal(detailModal)} className="bg-green-500 hover:bg-green-600 text-white px-4 py-3 rounded-xl text-sm font-bold shadow-sm transition flex items-center justify-center gap-2">
+                                                    <span>💰</span> Lunasi Pembayaran
+                                                </button>
+                                                <button onClick={() => sendWAPayment(detailModal)} className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-3 rounded-xl text-sm font-bold shadow-sm transition flex items-center justify-center gap-2">
+                                                    <span>💳</span> WA Tagih Sisa
+                                                </button>
+                                            </>
+                                        )}
+                                        
+                                        <button onClick={() => sendWAInvoice(detailModal)} className="bg-teal-500 hover:bg-teal-600 text-white px-4 py-3 rounded-xl text-sm font-bold shadow-sm transition flex items-center justify-center gap-2">
+                                            <span>📄</span> WA Kirim Nota
+                                        </button>
+
+                                        <button onClick={() => sendWAReady(detailModal)} className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-xl text-sm font-bold shadow-sm transition flex items-center justify-center gap-2">
+                                            <span>📦</span> WA Barang Selesai
+                                        </button>
+
+                                        <button onClick={() => printA6Nota(detailModal)} className={`bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-3 rounded-xl text-sm font-bold shadow-sm transition flex items-center justify-center gap-2 ${detailModal.sisa === 0 ? 'col-span-2 md:col-span-1' : ''}`}>
+                                            <span>🖨️</span> Cetak Nota
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="w-64 bg-slate-900 text-white p-6 flex flex-col h-screen sticky top-0 hidden md:flex">
+                        <div className="mb-8">
+                            <h1 className="text-3xl font-black text-amber-500 tracking-wider">ARUNIKA</h1>
+                            <p className="text-slate-400 text-xs mt-1">Halo, {currentUser.role}</p>
+                        </div>
+                        <nav className="flex-1 space-y-1">
+                            <button onClick={() => setActiveTab('dashboard')} className={`w-full text-left px-4 py-3 rounded-xl transition font-medium ${activeTab === 'dashboard' ? 'bg-amber-500 text-white' : 'text-slate-300 hover:bg-slate-800'}`}>📊 Dasbor Hari Ini</button>
+                            <button onClick={() => setActiveTab('rekap')} className={`w-full text-left px-4 py-3 rounded-xl transition font-medium ${activeTab === 'rekap' ? 'bg-amber-500 text-white' : 'text-slate-300 hover:bg-slate-800'}`}>📑 Rekap Orderan</button>
+                            <button onClick={() => setActiveTab('customers')} className={`w-full text-left px-4 py-3 rounded-xl transition font-medium ${activeTab === 'customers' ? 'bg-amber-500 text-white' : 'text-slate-300 hover:bg-slate-800'}`}>👥 Pelanggan</button>
+                            <button onClick={() => setActiveTab('products')} className={`w-full text-left px-4 py-3 rounded-xl transition font-medium ${activeTab === 'products' ? 'bg-amber-500 text-white' : 'text-slate-300 hover:bg-slate-800'}`}>📦 Produk & Harga</button>
+                            <button onClick={() => setActiveTab('invoice')} className={`w-full text-left px-4 py-3 rounded-xl transition font-medium ${activeTab === 'invoice' ? 'bg-amber-500 text-white' : 'text-slate-300 hover:bg-slate-800'}`}>📝 Buat Invoice</button>
+                            <button onClick={() => setActiveTab('cashbook')} className={`w-full text-left px-4 py-3 rounded-xl transition font-medium ${activeTab === 'cashbook' ? 'bg-amber-500 text-white' : 'text-slate-300 hover:bg-slate-800'}`}>💰 Buku Kas Bisnis</button>
+                            
+                            {currentUser.role === 'Owner' && (
+                                <button onClick={() => setActiveTab('personalcash')} className={`w-full text-left px-4 py-3 rounded-xl transition font-medium mt-4 border border-violet-700 ${activeTab === 'personalcash' ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/40' : 'text-violet-300 hover:bg-slate-800'}`}>👛 Kas Pribadi (Owner)</button>
+                            )}
+                        </nav>
+                        <button onClick={handleLogout} className="mt-8 px-4 py-3 text-red-400 hover:bg-red-400/10 rounded-xl text-left font-bold transition">Keluar</button>
+                    </div>
+
+                    <div className="flex-1 p-4 md:p-8 overflow-y-auto w-full">
+                        <div className="md:hidden flex justify-between items-center mb-4 bg-white p-4 rounded-xl shadow-sm">
+                            <h1 className="text-xl font-black text-amber-500">ARUNIKA</h1>
+                            <button onClick={handleLogout} className="text-red-500 text-sm font-bold">Keluar</button>
+                        </div>
+                        <div className="md:hidden flex overflow-x-auto space-x-2 mb-6 pb-2 hide-scrollbar">
+                            <button onClick={() => setActiveTab('dashboard')} className={`px-4 py-2 rounded-full whitespace-nowrap text-sm ${activeTab === 'dashboard' ? 'bg-amber-500 text-white' : 'bg-white'}`}>Dasbor</button>
+                            <button onClick={() => setActiveTab('rekap')} className={`px-4 py-2 rounded-full whitespace-nowrap text-sm ${activeTab === 'rekap' ? 'bg-amber-500 text-white' : 'bg-white'}`}>Rekap</button>
+                            <button onClick={() => setActiveTab('invoice')} className={`px-4 py-2 rounded-full whitespace-nowrap text-sm ${activeTab === 'invoice' ? 'bg-amber-500 text-white' : 'bg-white'}`}>Invoice</button>
+                            <button onClick={() => setActiveTab('customers')} className={`px-4 py-2 rounded-full whitespace-nowrap text-sm ${activeTab === 'customers' ? 'bg-amber-500 text-white' : 'bg-white'}`}>Pelanggan</button>
+                            <button onClick={() => setActiveTab('products')} className={`px-4 py-2 rounded-full whitespace-nowrap text-sm ${activeTab === 'products' ? 'bg-amber-500 text-white' : 'bg-white'}`}>Produk</button>
+                            <button onClick={() => setActiveTab('cashbook')} className={`px-4 py-2 rounded-full whitespace-nowrap text-sm ${activeTab === 'cashbook' ? 'bg-amber-500 text-white' : 'bg-white'}`}>Kas</button>
+                        </div>
+
+                        {activeTab === 'dashboard' && (
+                            <div className="space-y-6 max-w-6xl">
+                                <h2 className="text-2xl font-bold text-gray-900">Ringkasan Finansial Usaha</h2>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-amber-500">
+                                        <p className="text-xs font-bold text-gray-500 uppercase">Total Penjualan (Omset)</p>
+                                        <h3 className="text-2xl font-black text-amber-600">{formatRupiah(getTotalOmset())}</h3>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-red-500">
+                                        <p className="text-xs font-bold text-gray-500 uppercase">Total Modal (HPP)</p>
+                                        <h3 className="text-2xl font-black text-red-600">{formatRupiah(getTotalModal())}</h3>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-blue-500">
+                                        <p className="text-xs font-bold text-gray-500 uppercase">Laba Kotor</p>
+                                        <h3 className="text-2xl font-black text-blue-600">{formatRupiah(getLabaKotor())}</h3>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-500">
+                                        <p className="text-xs font-bold text-gray-500 uppercase">Total Saldo Kas Real</p>
+                                        <h3 className="text-2xl font-black text-green-600">{formatRupiah(getTotalRealMoney())}</h3>
+                                    </div>
+                                </div>
+                                
+                                <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                                    <div className="p-4 bg-gray-50 font-bold border-b flex justify-between items-center">
+                                        <span>Daftar Orderan Masuk (Terbaru)</span>
+                                        <button onClick={() => setActiveTab('rekap')} className="text-sm text-blue-600 hover:underline">Lihat Semua Data & Filter &rarr;</button>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-sm min-w-[900px]">
+                                            <thead className="bg-white border-b text-xs text-gray-400 uppercase">
+                                                <tr>
+                                                    <th className="p-4">Nota</th>
+                                                    <th className="p-4">Pelanggan</th>
+                                                    <th className="p-4 w-1/3">Keterangan Pesanan</th>
+                                                    <th className="p-4 text-right">Total</th>
+                                                    <th className="p-4 text-center">Status Bayar</th>
+                                                    <th className="p-4 text-center">Aksi</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y">
+                                                {invoices.slice(0, 10).map((inv, i) => (
+                                                    <tr key={i} className="hover:bg-slate-50">
+                                                        <td className="p-4 font-bold text-amber-600">{displayNota(inv)}</td>
+                                                        <td className="p-4 font-bold">{inv.customer}</td>
+                                                        <td className="p-4 text-xs text-gray-600 leading-relaxed">
+                                                            {inv.items.map(it => `${it.qty}x ${it.internalName || it.name}`).join(', ')}
+                                                        </td>
+                                                        <td className="p-4 font-bold text-right">{formatRupiah(inv.total)}</td>
+                                                        <td className="p-4 text-center">
+                                                            {inv.sisa > 0 ? (
+                                                                <button onClick={() => setPayModal(inv)} className="bg-red-100 text-red-600 px-3 py-1 rounded-full text-xs font-bold hover:bg-red-200 transition">
+                                                                    Kurang {formatRupiah(inv.sisa)} (Lunasi)
+                                                                </button>
+                                                            ) : (
+                                                                <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">LUNAS</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-4 text-center">
+                                                            <button onClick={() => setDetailModal(inv)} className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-sm transition">
+                                                                👁️ Detail
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {invoices.length === 0 && (
+                                                    <tr><td colSpan="6" className="p-8 text-center text-gray-400">Belum ada orderan masuk.</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'rekap' && (
+                            <div className="space-y-6 max-w-6xl">
+                                <div className="bg-white p-6 rounded-2xl shadow-sm">
+                                    <h2 className="text-xl font-bold text-slate-800 mb-4">📑 Rekap Data Orderan / Invoice</h2>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 mb-6">
+                                        <div className="md:col-span-2">
+                                            <label className="text-xs font-bold text-slate-500 block mb-1">Cari Nama Pelanggan / No Nota</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Ketik untuk mencari..." 
+                                                value={rekapSearch} 
+                                                onChange={(e) => setRekapSearch(e.target.value)} 
+                                                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-500 block mb-1">Bulan Order</label>
+                                            <select 
+                                                value={rekapMonth} 
+                                                onChange={(e) => setRekapMonth(e.target.value)} 
+                                                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
+                                            >
+                                                <option value="Semua">Semua Bulan</option>
+                                                {availableMonths.map((m, i) => <option key={i} value={m}>{m}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-500 block mb-1">Status Pembayaran</label>
+                                            <select 
+                                                value={rekapStatus} 
+                                                onChange={(e) => setRekapStatus(e.target.value)} 
+                                                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
+                                            >
+                                                <option value="Semua">Semua Status</option>
+                                                <option value="Lunas">LUNAS ✅</option>
+                                                <option value="Menunggak">BELUM LUNAS ❌</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-6 mb-4 px-2">
+                                        <div>
+                                            <p className="text-xs font-bold text-gray-500">Total Omset (Sesuai Filter)</p>
+                                            <p className="text-lg font-black text-amber-600">{formatRupiah(totalOmsetRekap)}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-gray-500">Total Piutang/Menunggak</p>
+                                            <p className="text-lg font-black text-red-600">{formatRupiah(totalSisaRekap)}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-gray-500">Jumlah Transaksi</p>
+                                            <p className="text-lg font-black text-blue-600">{filteredRekapInvoices.length} Nota</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="overflow-x-auto border rounded-xl">
+                                        <table className="w-full text-left text-sm min-w-[900px]">
+                                            <thead className="bg-slate-50 border-b text-xs text-gray-400 uppercase">
+                                                <tr>
+                                                    <th className="p-4">Tgl</th>
+                                                    <th className="p-4">Nota</th>
+                                                    <th className="p-4">Pelanggan</th>
+                                                    <th className="p-4 w-1/4">Barang</th>
+                                                    <th className="p-4 text-right">Total</th>
+                                                    <th className="p-4 text-center">Status</th>
+                                                    <th className="p-4 text-center">Aksi</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y">
+                                                {filteredRekapInvoices.map((inv, i) => (
+                                                    <tr key={i} className="hover:bg-slate-50">
+                                                        <td className="p-4 text-slate-500">{inv.date}</td>
+                                                        <td className="p-4 font-bold text-amber-600">{displayNota(inv)}</td>
+                                                        <td className="p-4 font-bold">{inv.customer}</td>
+                                                        <td className="p-4 text-xs text-gray-600">
+                                                            {inv.items.map(it => `${it.qty}x ${it.name}`).join(', ')}
+                                                        </td>
+                                                        <td className="p-4 font-bold text-right">{formatRupiah(inv.total)}</td>
+                                                        <td className="p-4 text-center">
+                                                            {inv.sisa > 0 ? (
+                                                                <button onClick={() => setPayModal(inv)} className="bg-red-100 text-red-600 px-3 py-1 rounded-full text-xs font-bold hover:bg-red-200 transition">
+                                                                    Sisa {formatRupiah(inv.sisa)}
+                                                                </button>
+                                                            ) : (
+                                                                <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">LUNAS</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-4 text-center">
+                                                            <button onClick={() => setDetailModal(inv)} className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition">
+                                                                Detail
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {filteredRekapInvoices.length === 0 && (
+                                                    <tr><td colSpan="7" className="p-8 text-center text-gray-400">Tidak ada data orderan yang sesuai dengan pencarian/filter.</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'customers' && (
+                            <div className="space-y-6 max-w-5xl">
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-100 gap-4">
+                                    <h2 className="text-xl font-bold text-slate-800">Manajemen Pelanggan</h2>
+                                    <button onClick={() => setShowBroadcast(true)} className="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition flex items-center gap-2 w-full md:w-auto justify-center">
+                                        <span>📢</span> Broadcast Promo WA
+                                    </button>
+                                </div>
+
+                                <div className="bg-white p-6 rounded-2xl shadow-sm">
+                                    <h3 className="font-bold mb-4 text-amber-600">{editCustId ? 'Edit Data Pelanggan' : 'Penambahan Pelanggan Baru'}</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <input type="text" placeholder="Nama Pelanggan" value={custName} onChange={e=>setCustName(e.target.value)} className="p-3 border rounded-xl w-full focus:ring-2 focus:ring-amber-500 outline-none" />
+                                        <input type="text" placeholder="No WhatsApp (08...)" value={custPhone} onChange={e=>setCustPhone(e.target.value)} className="p-3 border rounded-xl w-full focus:ring-2 focus:ring-amber-500 outline-none" />
+                                        <input type="text" placeholder="Alamat Lengkap" value={custAddress} onChange={e=>setCustAddress(e.target.value)} className="p-3 border rounded-xl w-full focus:ring-2 focus:ring-amber-500 outline-none" />
+                                    </div>
+                                    <div className="flex gap-3 mt-4">
+                                        <button onClick={handleAddCustomer} className="bg-amber-500 text-white px-6 py-3 rounded-xl font-bold w-full md:w-auto hover:bg-amber-600 transition shadow-lg shadow-amber-500/30">
+                                            {editCustId ? 'Simpan Perubahan' : 'Simpan Data Pelanggan'}
+                                        </button>
+                                        {editCustId && (
+                                            <button onClick={() => {setEditCustId(null); setCustName(''); setCustPhone(''); setCustAddress('');}} className="bg-gray-200 text-gray-700 px-6 py-3 rounded-xl font-bold w-full md:w-auto hover:bg-gray-300 transition">
+                                                Batal Edit
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-sm min-w-[600px]">
+                                            <thead className="bg-gray-50 border-b text-xs text-gray-400 uppercase">
+                                                <tr><th className="p-4">Nama</th><th className="p-4">WhatsApp</th><th className="p-4">Alamat</th><th className="p-4 text-center">Aksi</th></tr>
+                                            </thead>
+                                            <tbody className="divide-y">
+                                                {customers.map((c)=>(
+                                                    <tr key={c.id} className="hover:bg-slate-50">
+                                                        <td className="p-4 font-bold">{c.name}</td>
+                                                        <td className="p-4">{c.phone}</td>
+                                                        <td className="p-4 text-gray-500">{c.address || '-'}</td>
+                                                        <td className="p-4 text-center space-x-2 flex justify-center">
+                                                            <button onClick={() => handleEditCustomerClick(c)} className="bg-blue-100 text-blue-600 hover:bg-blue-200 px-3 py-1.5 rounded-lg transition text-xs font-bold" title="Edit">✏️ Edit</button>
+                                                            <button onClick={() => handleDeleteCustomer(c.id)} className="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-1.5 rounded-lg transition text-xs font-bold" title="Hapus">🗑️ Hapus</button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {customers.length === 0 && <tr><td colSpan="4" className="text-center py-8 text-gray-400">Belum ada data pelanggan.</td></tr>}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'products' && (
+                            <div className="space-y-6 max-w-5xl">
+                                <div className="bg-white p-6 rounded-2xl shadow-sm">
+                                    <h3 className="font-bold mb-4 text-amber-600">{editProdId ? 'Edit Data Produk' : 'Tambah Produk & Harga Standar'}</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-500 block mb-1">Nama Produk</label>
+                                            <input type="text" placeholder="Misal: Banner 280gr" value={prodName} onChange={e=>setProdName(e.target.value)} className="p-3 border rounded-xl w-full outline-none focus:ring-2 focus:ring-amber-500" />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-500 block mb-1">Satuan</label>
+                                            <select value={prodUnit} onChange={e=>setProdUnit(e.target.value)} className="p-3 border rounded-xl w-full outline-none focus:ring-2 focus:ring-amber-500">
+                                                <option value="Pcs">Satuan (Pcs/Paket)</option>
+                                                <option value="Meter">Meteran</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-500 block mb-1">Harga Modal</label>
+                                            <input type="text" placeholder="Rp 0" value={formatInputNumber(prodModal)} onChange={e=>setProdModal(parseInputNumber(e.target.value))} className="p-3 border rounded-xl w-full outline-none focus:ring-2 focus:ring-amber-500" />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-500 block mb-1">Harga Jual</label>
+                                            <input type="text" placeholder="Rp 0" value={formatInputNumber(prodPrice)} onChange={e=>setProdPrice(parseInputNumber(e.target.value))} className="p-3 border rounded-xl w-full outline-none focus:ring-2 focus:ring-amber-500" />
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-3 mt-4">
+                                        <button onClick={handleAddProduct} className="bg-amber-500 text-white px-6 py-3 rounded-xl font-bold w-full md:w-auto hover:bg-amber-600 transition shadow-sm">
+                                            {editProdId ? 'Simpan Perubahan' : '+ Tambah Produk'}
+                                        </button>
+                                        {editProdId && (
+                                            <button onClick={() => {setEditProdId(null); setProdName(''); setProdModal(''); setProdPrice(''); setProdUnit('Pcs');}} className="bg-gray-200 text-gray-700 px-6 py-3 rounded-xl font-bold w-full md:w-auto hover:bg-gray-300 transition">
+                                                Batal Edit
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-sm min-w-[700px]">
+                                            <thead className="bg-gray-50 border-b text-xs text-gray-400 uppercase">
+                                                <tr>
+                                                    <th className="p-4">Nama Produk</th>
+                                                    <th className="p-4 text-center">Satuan</th>
+                                                    <th className="p-4 text-right">Modal Default</th>
+                                                    <th className="p-4 text-right">Jual Default</th>
+                                                    <th className="p-4 text-center">Aksi</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y">
+                                                {products.map((p)=>(
+                                                    <tr key={p.id} className="hover:bg-slate-50">
+                                                        <td className="p-4 font-bold">{p.name}</td>
+                                                        <td className="p-4 text-center">
+                                                            <span className="bg-slate-200 px-2 py-1 rounded text-xs font-bold text-slate-700">{p.unit || 'Pcs'}</span>
+                                                        </td>
+                                                        <td className="p-4 text-right text-red-600 font-bold">{formatRupiah(p.modal)}</td>
+                                                        <td className="p-4 text-right text-green-600 font-bold">{formatRupiah(p.price)}</td>
+                                                        <td className="p-4 text-center space-x-2 flex justify-center">
+                                                            <button onClick={() => handleEditProductClick(p)} className="bg-blue-100 text-blue-600 hover:bg-blue-200 px-3 py-1.5 rounded-lg transition text-xs font-bold" title="Edit">✏️ Edit</button>
+                                                            <button onClick={() => handleDeleteProduct(p.id)} className="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-1.5 rounded-lg transition text-xs font-bold" title="Hapus">🗑️ Hapus</button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {products.length === 0 && <tr><td colSpan="5" className="text-center py-8 text-gray-400">Belum ada data produk.</td></tr>}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'invoice' && (
+                            <div className="space-y-6 max-w-5xl">
+                                <div className="bg-white p-6 rounded-2xl shadow-sm">
+                                    <h3 className="font-bold mb-4 text-slate-800">Buat Invoice & Catat Modal</h3>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-500 block mb-1">Nama Pelanggan (Pilih dari list atau ketik baru)</label>
+                                            <input 
+                                                type="text" 
+                                                list="customer-list"
+                                                placeholder="Ketik nama pelanggan..." 
+                                                value={invCustomer} 
+                                                onChange={handleInvCustomerChange} 
+                                                className="p-3 border rounded-xl w-full focus:ring-2 focus:ring-amber-500 outline-none" 
+                                            />
+                                            <datalist id="customer-list">
+                                                {customers.map(c => <option key={c.id} value={c.name} />)}
+                                            </datalist>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-500 block mb-1">No WhatsApp</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Otomatis terisi jika pelanggan lama" 
+                                                value={invPhone} 
+                                                onChange={e=>setInvPhone(e.target.value)} 
+                                                className="p-3 border rounded-xl w-full focus:ring-2 focus:ring-amber-500 outline-none" 
+                                            />
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 md:grid-cols-8 gap-3 mb-4 bg-slate-50 p-4 rounded-xl items-end border border-slate-200">
+                                        <div className="col-span-2 md:col-span-2">
+                                            <label className="text-xs font-bold text-slate-500">Pilih Produk</label>
+                                            <select value={selProd} onChange={e=>{
+                                                setSelProd(e.target.value);
+                                                const p = products.find(x=>x.id.toString()===e.target.value);
+                                                if(p){ 
+                                                    setSelHarga(p.price); 
+                                                    setSelModal(p.modal); 
+                                                    if(p.unit) setSelType(p.unit);
+                                                }
+                                            }} className="p-3 border rounded-lg bg-white w-full focus:ring-2 focus:ring-amber-500 outline-none font-medium">
+                                                <option value="">-- Pilih Produk --</option>
+                                                {products.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="col-span-1">
+                                            <label className="text-xs font-bold text-slate-500">Satuan</label>
+                                            <select value={selType} onChange={e=>setSelType(e.target.value)} className="p-3 border rounded-lg bg-white w-full outline-none">
+                                                <option value="Pcs">Pcs/Paket</option>
+                                                <option value="Meter">Meter</option>
+                                            </select>
+                                        </div>
+                                        
+                                        {selType === 'Meter' && (
+                                            <>
+                                                <div className="col-span-1">
+                                                    <label className="text-xs font-bold text-slate-500">P (m)</label>
+                                                    <input type="number" value={selPanjang} onChange={e=>setSelPanjang(e.target.value)} className="p-3 border rounded-lg w-full" placeholder="0"/>
+                                                </div>
+                                                <div className="col-span-1">
+                                                    <label className="text-xs font-bold text-slate-500">L (m)</label>
+                                                    <input type="number" value={selLebar} onChange={e=>setSelLebar(e.target.value)} className="p-3 border rounded-lg w-full" placeholder="0"/>
+                                                </div>
+                                            </>
+                                        )}
+                                        
+                                        <div className="col-span-1">
+                                            <label className="text-xs font-bold text-red-500">H. Modal (HPP)</label>
+                                            <input type="text" value={formatInputNumber(selModal)} onChange={e=>setSelModal(parseInputNumber(e.target.value))} className="p-3 border border-red-200 rounded-lg w-full text-red-600 font-bold" placeholder="Rp 0" />
+                                        </div>
+
+                                        <div className="col-span-1">
+                                            <label className="text-xs font-bold text-green-500">H. Jual</label>
+                                            <input type="text" value={formatInputNumber(selHarga)} onChange={e=>setSelHarga(parseInputNumber(e.target.value))} className="p-3 border border-green-200 rounded-lg w-full text-green-700 font-bold" placeholder="Rp 0" />
+                                        </div>
+                                        
+                                        <div className="col-span-1">
+                                            <label className="text-xs font-bold text-slate-500">Biaya Desain</label>
+                                            <input type="text" value={formatInputNumber(selOngkosDesain)} onChange={e=>setSelOngkosDesain(parseInputNumber(e.target.value))} className="p-3 border rounded-lg w-full" placeholder="Rp 0" />
+                                        </div>
+                                        
+                                        <div className="col-span-1">
+                                            <label className="text-xs font-bold text-slate-500">Qty</label>
+                                            <input type="number" value={selQty} onChange={e=>setSelQty(e.target.value)} className="p-3 border rounded-lg w-full text-center" placeholder="1" />
+                                        </div>
+                                        
+                                        <div className="col-span-2 md:col-span-8 mt-2">
+                                            <button onClick={addToCart} className="bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg p-3 w-full transition shadow-md shadow-amber-500/20">+ Tambah Barang Ke List Order</button>
+                                        </div>
+                                    </div>
+
+                                    <div className="overflow-x-auto border rounded-xl">
+                                        <table className="w-full text-sm min-w-[500px]">
+                                            <thead className="bg-slate-50">
+                                                <tr className="border-b">
+                                                    <th className="text-left py-3 px-4">List Item</th>
+                                                    <th className="text-center">Qty</th>
+                                                    <th className="text-right text-red-500">Total Modal (HPP)</th>
+                                                    <th className="text-right px-4">Subtotal Jual</th>
+                                                    <th className="text-center px-4">Aksi</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {invItems.map((it,i)=>(
+                                                    <tr key={it.id} className="border-b hover:bg-slate-50">
+                                                        <td className="py-3 px-4">{it.internalName || it.name}</td>
+                                                        <td className="text-center font-bold">{it.qty}</td>
+                                                        <td className="text-right font-medium text-red-400">{formatRupiah(it.totalModal)}</td>
+                                                        <td className="text-right font-bold text-slate-700 px-4">{formatRupiah(it.total)}</td>
+                                                        <td className="text-center px-4">
+                                                            <button onClick={() => removeFromCart(it.id)} className="text-red-500 hover:text-white hover:bg-red-500 p-1.5 rounded-lg transition" title="Hapus Barang">❌</button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {invItems.length === 0 && <tr><td colSpan="5" className="text-center py-6 text-gray-400">Belum ada barang yang ditambahkan</td></tr>}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {invItems.length > 0 && (
+                                        <div className="flex flex-col items-end space-y-3 mt-6 border-t pt-4">
+                                            <div className="text-sm font-bold text-gray-400">Total Modal Transaksi Ini: <span className="text-red-400">{formatRupiah(subModalItems)}</span></div>
+                                            <div className="text-2xl font-black text-amber-600">TOTAL TAGIHAN PELANGGAN: {formatRupiah(totalAll)}</div>
+                                            <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                                                <input type="text" placeholder="Nominal Uang DP / Uang Pas" value={formatInputNumber(invDp)} onChange={e=>setInvDp(parseInputNumber(e.target.value))} className="p-4 border-2 border-green-200 rounded-xl text-right font-black text-green-700 w-full md:w-64" />
+                                                <button onClick={()=>{
+                                                    if(!invCustomer) return showToast('Isi nama pelanggan terlebih dahulu!');
+                                                    
+                                                    const nextSeq = invoices.length > 0 ? Math.max(...invoices.map(inv => inv.notaSeq || 0)) + 1 : 1;
+
+                                                    const newInv = { 
+                                                        id: Date.now(), 
+                                                        notaSeq: nextSeq,
+                                                        date: new Date().toLocaleDateString('id-ID'), 
+                                                        customer: invCustomer, 
+                                                        phone: invPhone, 
+                                                        items: invItems, 
+                                                        designFee: 0, 
+                                                        totalModal: subModalItems, 
+                                                        total: totalAll, 
+                                                        dp: Number(invDp||0), 
+                                                        sisa: totalAll - Number(invDp||0) 
+                                                    };
+                                                    syncData('invoices', [newInv, ...invoices]);
+                                                    
+                                                    if(Number(invDp||0) > 0){
+                                                        syncData('cashbook', [{id: Date.now()+1, date: newInv.date, desc: `Pembayaran/DP Nota ${displayNota(newInv)} (${invCustomer})`, amount: Number(invDp||0), type: 'Masuk', source: 'CASH'}, ...cashBook]);
+                                                    }
+                                                    
+                                                    const existingCust = customers.find(c => c.name.toLowerCase() === invCustomer.toLowerCase());
+                                                    if (!existingCust && invPhone) {
+                                                        const newCust = { id: Date.now(), name: invCustomer, phone: invPhone, address: '' };
+                                                        syncData('customers', [...customers, newCust]);
+                                                    }
+
+                                                    setInvCustomer(''); setInvPhone(''); setInvItems([]); setInvDp('');
+                                                    printA6Nota(newInv);
+                                                    setDetailModal(newInv);
+                                                    showToast('Invoice Berhasil Disimpan!', 'success');
+                                                    setActiveTab('dashboard'); 
+                                                }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-4 rounded-xl w-full md:w-auto transition shadow-lg shadow-blue-500/30">Simpan & Cetak Nota</button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'cashbook' && (
+                            <div className="space-y-6 max-w-6xl">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
+                                    <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-500">
+                                        <p className="text-xs font-bold text-gray-500 uppercase">Uang di Laci (CASH)</p>
+                                        <h3 className="text-2xl font-black text-green-600">{formatRupiah(getSaldo('CASH'))}</h3>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-blue-500">
+                                        <p className="text-xs font-bold text-gray-500 uppercase">Saldo Rekening BCA</p>
+                                        <h3 className="text-2xl font-black text-blue-600">{formatRupiah(getSaldo('BCA'))}</h3>
+                                    </div>
+                                    <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-orange-500">
+                                        <p className="text-xs font-bold text-gray-500 uppercase">Saldo Rekening BRI</p>
+                                        <h3 className="text-2xl font-black text-orange-600">{formatRupiah(getSaldo('BRI'))}</h3>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white p-6 rounded-2xl shadow-sm">
+                                    <h3 className="font-bold mb-4">Catat Arus Kas Bisnis Tambahan</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4">
+                                        <select value={cashType} onChange={e=>setCashType(e.target.value)} className="p-2 border rounded-xl w-full"><option value="Masuk">Masuk Pemasukan</option><option value="Keluar">Catat Pengeluaran</option></select>
+                                        <select value={cashSource} onChange={e=>setCashSource(e.target.value)} className="p-2 border rounded-xl w-full"><option value="CASH">CASH (Laci)</option><option value="BCA">BCA</option><option value="BRI">BRI</option></select>
+                                        <input type="text" placeholder="Keterangan Transaksi" value={cashDesc} onChange={e=>setCashDesc(e.target.value)} className="p-2 border rounded-xl w-full" />
+                                        <input type="text" placeholder="Nominal" value={formatInputNumber(cashAmount)} onChange={e=>setCashAmount(parseInputNumber(e.target.value))} className="p-2 border rounded-xl w-full" />
+                                    </div>
+                                    <button onClick={()=>{
+                                        if(!cashDesc || !cashAmount) return showToast('Isi keterangan dan nominal');
+                                        syncData('cashbook', [{id: Date.now(), date: new Date().toLocaleDateString('id-ID'), desc: cashDesc, amount: Number(cashAmount), type: cashType, source: cashSource}, ...cashBook]);
+                                        setCashDesc(''); setCashAmount('');
+                                        showToast('Data Kas Berhasil Dicatat!', 'success');
+                                    }} className="bg-gray-800 text-white px-6 py-2 rounded-xl font-bold w-full md:w-auto">Catat ke Buku Kas Bisnis</button>
+                                </div>
+                                
+                                <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                                    <div className="p-4 bg-gray-50 font-bold border-b flex flex-col md:flex-row justify-between items-center gap-3">
+                                        <div className="flex items-center gap-3">
+                                            <span>Riwayat Arus Kas Bisnis</span>
+                                            <select value={cashFilter} onChange={e=>setCashFilter(e.target.value)} className="p-1 border rounded text-sm bg-white outline-none">
+                                                <option value="Semua">Semua Sumber</option>
+                                                <option value="CASH">Hanya CASH</option>
+                                                <option value="BCA">Hanya BCA</option>
+                                                <option value="BRI">Hanya BRI</option>
+                                            </select>
+                                        </div>
+                                        <button onClick={downloadKasPDF} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition flex items-center gap-2">
+                                            📄 Download Laporan PDF
+                                        </button>
+                                    </div>
+
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-sm min-w-[600px]">
+                                            <thead className="bg-white border-b text-xs text-gray-400 uppercase"><tr><th className="p-4">Tanggal</th><th className="p-4">Keterangan</th><th className="p-4 text-center">Sumber</th><th className="p-4 text-center">Jenis</th><th className="p-4 text-right">Nominal</th></tr></thead>
+                                            <tbody className="divide-y">
+                                                {filteredCashBook.map((cb,i)=>(
+                                                    <tr key={i} className="hover:bg-slate-50">
+                                                        <td className="p-4">{cb.date}</td>
+                                                        <td className="p-4 font-bold">{cb.desc}</td>
+                                                        <td className="p-4 text-center"><span className="bg-slate-200 px-2 py-1 rounded text-xs font-bold">{cb.source}</span></td>
+                                                        <td className="p-4 text-center"><span className={`px-2 py-0.5 rounded text-xs text-white font-bold ${cb.type==='Masuk'?'bg-green-500':'bg-red-500'}`}>{cb.type}</span></td>
+                                                        <td className={`p-4 text-right font-bold ${cb.type==='Masuk'?'text-green-600':'text-red-600'}`}>{cb.type==='Masuk'?'+':'-'}{formatRupiah(cb.amount)}</td>
+                                                    </tr>
+                                                ))}
+                                                {filteredCashBook.length === 0 && (
+                                                    <tr><td colSpan="5" className="p-8 text-center text-gray-400">Tidak ada data kas bisnis.</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'personalcash' && currentUser.role === 'Owner' && (
+                            <div className="space-y-6 max-w-5xl">
+                                <div className="bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white p-8 rounded-2xl shadow-lg relative overflow-hidden">
+                                    <div className="relative z-10">
+                                        <p className="text-sm font-bold text-violet-200 uppercase tracking-widest mb-1">Total Saldo Pribadi Owner</p>
+                                        <h3 className="text-4xl font-black">{formatRupiah(getPersonalSaldo())}</h3>
+                                    </div>
+                                    <div className="absolute -bottom-10 -right-10 opacity-20 text-9xl">👛</div>
+                                </div>
+
+                                <div className="bg-white p-6 rounded-2xl shadow-sm border border-violet-100">
+                                    <h3 className="font-bold mb-4 text-violet-800 text-lg">Catat & Sinkronisasi Keuangan Pribadi</h3>
+                                    <p className="text-sm text-gray-500 mb-4">Fitur ini memungkinkan Anda mencatat uang pribadi, atau mengambil uang dari bisnis (Prive) secara otomatis.</p>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+                                        <div className="md:col-span-1">
+                                            <label className="text-xs font-bold text-slate-500">Jenis Sinkronisasi</label>
+                                            <select value={pcSync} onChange={e=>setPcSync(e.target.value)} className="p-3 border rounded-xl w-full bg-slate-50 font-bold text-violet-700">
+                                                <option value="Pribadi">Hanya Catatan Pribadi</option>
+                                                <option value="TarikBisnis">Ambil Uang Bisnis (Prive)</option>
+                                                <option value="SuntikBisnis">Suntik Modal ke Bisnis</option>
+                                            </select>
+                                        </div>
+
+                                        {pcSync === 'Pribadi' ? (
+                                            <div className="md:col-span-1">
+                                                <label className="text-xs font-bold text-slate-500">Uang Pribadi</label>
+                                                <select value={pcType} onChange={e=>setPcType(e.target.value)} className="p-3 border rounded-xl w-full bg-white">
+                                                    <option value="Masuk">Masuk (Pendapatan Lain)</option>
+                                                    <option value="Keluar">Keluar (Jajan/Belanja)</option>
+                                                </select>
+                                            </div>
+                                        ) : (
+                                            <div className="md:col-span-1">
+                                                <label className="text-xs font-bold text-red-500">
+                                                    {pcSync === 'TarikBisnis' ? 'Ambil dari Laci/Rekening:' : 'Suntik ke Laci/Rekening:'}
+                                                </label>
+                                                <select value={pcWallet} onChange={e=>setPcWallet(e.target.value)} className="p-3 border border-red-200 rounded-xl w-full bg-red-50 font-bold">
+                                                    <option value="CASH">CASH (Laci Bisnis)</option>
+                                                    <option value="BCA">BCA (Rek Bisnis)</option>
+                                                    <option value="BRI">BRI (Rek Bisnis)</option>
+                                                </select>
+                                            </div>
+                                        )}
+
+                                        <div className="md:col-span-1">
+                                            <label className="text-xs font-bold text-slate-500">Keterangan / Catatan</label>
+                                            <input type="text" placeholder="Misal: Beli Kopi" value={pcDesc} onChange={e=>setPcDesc(e.target.value)} className="p-3 border rounded-xl w-full" />
+                                        </div>
+                                        <div className="md:col-span-1">
+                                            <label className="text-xs font-bold text-slate-500">Nominal</label>
+                                            <input type="text" placeholder="Rp 0" value={formatInputNumber(pcAmount)} onChange={e=>setPcAmount(parseInputNumber(e.target.value))} className="p-3 border rounded-xl w-full font-bold" />
+                                        </div>
+                                    </div>
+                                    <button onClick={()=>{
+                                        if(!pcDesc || !pcAmount) return showToast('Isi keterangan dan nominal!');
+                                        const amt = Number(pcAmount);
+                                        const dStr = new Date().toLocaleDateString('id-ID');
+                                        let finalType = pcType; 
+
+                                        if(pcSync === 'TarikBisnis') finalType = 'Masuk'; 
+                                        if(pcSync === 'SuntikBisnis') finalType = 'Keluar';
+
+                                        const newPc = {id: Date.now(), date: dStr, desc: pcDesc, amount: amt, type: finalType, sync: pcSync};
+                                        syncData('personalcash', [newPc, ...personalCashBook]);
+
+                                        if(pcSync === 'TarikBisnis') {
+                                            const newCb = {id: Date.now()+1, date: dStr, desc: `[PRIVE OWNER] ${pcDesc}`, amount: amt, type: 'Keluar', source: pcWallet};
+                                            syncData('cashbook', [newCb, ...cashBook]);
+                                        } else if (pcSync === 'SuntikBisnis') {
+                                            const newCb = {id: Date.now()+1, date: dStr, desc: `[SUNTIKAN MODAL OWNER] ${pcDesc}`, amount: amt, type: 'Masuk', source: pcWallet};
+                                            syncData('cashbook', [newCb, ...cashBook]);
+                                        }
+
+                                        setPcDesc(''); setPcAmount('');
+                                        showToast('Data Kas Pribadi Berhasil Disimpan!', 'success');
+                                    }} className="bg-violet-600 hover:bg-violet-700 text-white px-8 py-3 rounded-xl font-bold transition w-full md:w-auto shadow-lg shadow-violet-500/30">
+                                        Proses & Simpan
+                                    </button>
+                                </div>
+
+                                <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-violet-100">
+                                    <div className="p-4 bg-violet-50 font-bold border-b border-violet-100 text-violet-800">
+                                        Riwayat Keluar Masuk Uang Pribadi
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-sm min-w-[600px]">
+                                            <thead className="bg-white border-b text-xs text-gray-400 uppercase">
+                                                <tr><th className="p-4">Tanggal</th><th className="p-4">Keterangan</th><th className="p-4 text-center">Tipe/Sinkronisasi</th><th className="p-4 text-right">Nominal</th></tr>
+                                            </thead>
+                                            <tbody className="divide-y">
+                                                {personalCashBook.map((pc,i)=>(
+                                                    <tr key={i} className="hover:bg-slate-50">
+                                                        <td className="p-4 text-slate-500">{pc.date}</td>
+                                                        <td className="p-4 font-bold text-slate-700">{pc.desc}</td>
+                                                        <td className="p-4 text-center">
+                                                            {pc.sync === 'TarikBisnis' && <span className="bg-red-100 text-red-600 px-2 py-1 rounded text-xs font-bold mr-2">Tarik dr Bisnis</span>}
+                                                            {pc.sync === 'SuntikBisnis' && <span className="bg-blue-100 text-blue-600 px-2 py-1 rounded text-xs font-bold mr-2">Suntik ke Bisnis</span>}
+                                                            <span className={`px-2 py-0.5 rounded text-xs text-white font-bold ${pc.type==='Masuk'?'bg-green-500':'bg-red-500'}`}>{pc.type} Pribadi</span>
+                                                        </td>
+                                                        <td className={`p-4 text-right font-bold ${pc.type==='Masuk'?'text-green-600':'text-red-600'}`}>
+                                                            {pc.type==='Masuk'?'+':'-'}{formatRupiah(pc.amount)}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {personalCashBook.length === 0 && (
+                                                    <tr><td colSpan="4" className="p-8 text-center text-gray-400">Belum ada catatan kas pribadi.</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
