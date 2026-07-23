@@ -16,9 +16,9 @@
         </div>
         <nav class="flex-1 p-4 overflow-y-auto">
             <ul class="space-y-2">
-                <li onclick="showPage('dasbor')" class="nav-item p-3 cursor-pointer rounded-lg bg-indigo-700 font-bold hover:bg-indigo-600 transition">📊 Dasbor Hari Ini</li>
-                <li onclick="showPage('kaspribadi')" class="nav-item p-3 cursor-pointer rounded-lg hover:bg-gray-800 transition">💰 Kas Pribadi (Owner)</li>
-                <li onclick="showPage('pengaturan')" class="nav-item p-3 cursor-pointer rounded-lg hover:bg-gray-800 transition">⚙️ Pengaturan Akun</li>
+                <li onclick="showPage('dasbor')" class="nav-item p-3 cursor-pointer rounded-lg bg-indigo-700 font-bold hover:bg-indigo-600">📊 Dasbor Hari Ini</li>
+                <li onclick="showPage('pengaturan')" class="nav-item p-3 cursor-pointer rounded-lg hover:bg-gray-800">⚙️ Pengaturan Akun</li>
+                <!-- Menu lain bisa ditambahkan di sini -->
             </ul>
         </nav>
         <div class="p-4 border-t border-gray-700 text-center">
@@ -29,7 +29,7 @@
     <!-- KONTEN UTAMA KANAN -->
     <main class="flex-1 p-8 overflow-y-auto w-full">
         
-        <!-- ================= HALAMAN DASBOR ================= -->
+        <!-- HALAMAN DASBOR -->
         <div id="page-dasbor" class="page-section">
             <h2 class="text-3xl font-bold text-gray-800 mb-6">Ringkasan Operasional</h2>
             
@@ -39,10 +39,12 @@
                     <h2 class="text-lg font-semibold text-gray-700">Waktu Saat Ini</h2>
                     <p class="text-sm text-gray-500">Lamongan, Jawa Timur</p>
                 </div>
-                <div id="jam-digital" class="text-4xl font-extrabold text-indigo-600 tracking-wider">00:00:00</div>
+                <div id="jam-digital" class="text-4xl font-extrabold text-indigo-600 tracking-wider">
+                    00:00:00
+                </div>
             </div>
 
-            <!-- List Antrean -->
+            <!-- List Antrean yang harus diproses -->
             <div class="mb-8 mt-6">
                 <h3 class="text-xl font-bold text-gray-800 mb-4 border-l-4 border-orange-500 pl-3">Daftar Antrean Proses & Desain</h3>
                 <div class="bg-white rounded-lg shadow overflow-hidden">
@@ -55,84 +57,29 @@
                                 <th class="p-4">Aksi</th>
                             </tr>
                         </thead>
-                        <tbody id="tabel-antrean">
-                            <tr><td colspan="4" class="p-4 text-center text-gray-500">Memuat data...</td></tr>
+                        <tbody id="tabel-antrean-desain">
+                            <tr><td colspan="4" class="p-4 text-center text-gray-500">Memuat data antrean...</td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
 
-        <!-- ================= HALAMAN KAS PRIBADI (OWNER) ================= -->
-        <div id="page-kaspribadi" class="page-section hidden">
-            <h2 class="text-3xl font-bold text-gray-800 mb-6 border-b-2 pb-2 border-gray-300">Kas Pribadi (Owner)</h2>
-            
-            <!-- Widget Saldo -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <!-- Saldo Laci CASH -->
-                <div class="bg-gradient-to-r from-emerald-500 to-green-600 rounded-xl shadow-lg p-6 text-white relative overflow-hidden">
-                    <h3 class="text-sm font-semibold opacity-80 uppercase tracking-wider mb-1">Uang di Laci (CASH)</h3>
-                    <h2 id="saldo-CASH" class="text-3xl font-bold mb-4">Rp 0</h2>
-                    <button onclick="updateSaldo('CASH')" class="bg-white text-green-700 px-4 py-1.5 rounded-full text-sm font-bold shadow hover:bg-green-50 transition">Update Saldo</button>
-                </div>
-                <!-- Saldo BCA -->
-                <div class="bg-gradient-to-r from-blue-700 to-blue-900 rounded-xl shadow-lg p-6 text-white relative overflow-hidden">
-                    <h3 class="text-sm font-semibold opacity-80 uppercase tracking-wider mb-1">Saldo Rekening BCA</h3>
-                    <h2 id="saldo-BCA" class="text-3xl font-bold mb-4">Rp 0</h2>
-                    <button onclick="updateSaldo('BCA')" class="bg-white text-blue-900 px-4 py-1.5 rounded-full text-sm font-bold shadow hover:bg-blue-50 transition">Update Saldo</button>
-                </div>
-                <!-- Saldo BRI -->
-                <div class="bg-gradient-to-r from-blue-500 to-cyan-600 rounded-xl shadow-lg p-6 text-white relative overflow-hidden">
-                    <h3 class="text-sm font-semibold opacity-80 uppercase tracking-wider mb-1">Saldo Rekening BRI</h3>
-                    <h2 id="saldo-BRI" class="text-3xl font-bold mb-4">Rp 0</h2>
-                    <button onclick="updateSaldo('BRI')" class="bg-white text-blue-700 px-4 py-1.5 rounded-full text-sm font-bold shadow hover:bg-blue-50 transition">Update Saldo</button>
-                </div>
-            </div>
-
-            <!-- Tagihan Bulanan -->
-            <div class="bg-white rounded-lg shadow-md p-6 border-t-4 border-red-500">
-                <h3 class="text-xl font-bold text-gray-800 mb-4">Daftar Tagihan Bulanan</h3>
-                <p class="text-sm text-gray-500 mb-4">Catat pengeluaran rutin Anda setiap bulan di sini.</p>
-                
-                <!-- Form Tambah Tagihan -->
-                <div class="flex gap-4 mb-6">
-                    <input type="text" id="billName" placeholder="Nama Tagihan (Cth: Listrik, Internet)" class="flex-1 p-3 border rounded focus:border-red-500 focus:outline-none">
-                    <input type="number" id="billAmount" placeholder="Nominal (Cth: 500000)" class="w-1/3 p-3 border rounded focus:border-red-500 focus:outline-none">
-                    <button onclick="tambahTagihan(this)" class="bg-red-500 text-white font-bold px-6 py-3 rounded shadow hover:bg-red-600 transition">+ Tambah Tagihan</button>
-                </div>
-
-                <!-- Tabel Tagihan -->
-                <table class="w-full text-left border">
-                    <thead class="bg-gray-100">
-                        <tr>
-                            <th class="p-3 border-b">Nama Tagihan</th>
-                            <th class="p-3 border-b">Nominal</th>
-                            <th class="p-3 border-b">Status</th>
-                            <th class="p-3 border-b">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tabel-bills">
-                        <tr><td colspan="4" class="p-4 text-center text-gray-500">Belum ada tagihan tersimpan.</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- ================= HALAMAN PENGATURAN ================= -->
+        <!-- HALAMAN PENGATURAN -->
         <div id="page-pengaturan" class="page-section hidden">
             <h2 class="text-3xl font-bold text-gray-800 mb-6 border-b-2 pb-2 border-gray-300">Manajemen Pengguna (User)</h2>
             
-            <div class="bg-white p-6 rounded-lg shadow-md mb-6 border-t-4 border-gray-800">
+            <div class="bg-white p-6 rounded-lg shadow-md mb-6 border-t-4 border-green-500">
                 <h3 class="font-bold text-lg mb-4 text-gray-700">Buat Akun Baru</h3>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <input type="text" id="newUser" placeholder="Username (Cth: Desainer1)" class="p-3 border rounded focus:outline-none focus:border-gray-800">
-                    <input type="password" id="newPass" placeholder="Password (PIN)" class="p-3 border rounded focus:outline-none focus:border-gray-800">
-                    <select id="newRole" class="p-3 border rounded focus:outline-none bg-white">
+                    <input type="text" id="newUser" placeholder="Username (Cth: Bos)" class="p-3 border border-gray-300 rounded focus:outline-none focus:border-indigo-500">
+                    <input type="password" id="newPass" placeholder="Password (PIN)" class="p-3 border border-gray-300 rounded focus:outline-none focus:border-indigo-500">
+                    <select id="newRole" class="p-3 border border-gray-300 rounded focus:outline-none bg-white">
                         <option value="Owner">Owner (Pemilik)</option>
                         <option value="Karyawan">Karyawan (Desain/Kasir)</option>
                     </select>
                 </div>
-                <button onclick="simpanUserBaru(this)" class="mt-4 bg-gray-800 text-white font-bold px-6 py-2 rounded shadow hover:bg-gray-900 transition">
+                <button onclick="simpanUserBaru()" class="mt-4 bg-green-500 text-white font-bold px-6 py-2 rounded shadow hover:bg-green-600 transition duration-200">
                     + Simpan Akun
                 </button>
             </div>
@@ -155,38 +102,17 @@
 
     </main>
 
-    <!-- ================= JAVASCRIPT LOGIC ================= -->
+    <!-- KODE JAVASCRIPT LOGIKA APLIKASI -->
     <script>
-        // MASUKKAN LINK API ANDA DI BAWAH INI:
+        // =======================================================================
+        // PASTE LINK URL API DARI GOOGLE APPS SCRIPT ANDA DI BAWAH INI:
         const API_URL = "https://script.google.com/macros/s/AKfycbwMe4M2yN578-CfqpbkMdFOPlBA4kU5QQcVJkL8Ow-vdJLun5W7RBDvcOyGcH3LDoVJ/exec";
-        
-        let db = { users: [], invoices: [], balances: [], monthlybills: [] };
+        // =======================================================================
 
-        // --- Helper Formatting Rupiah ---
-        function formatRp(angka) {
-            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka || 0);
-        }
+        // Database Lokal Sementara
+        let db = { users: [], products: [], customers: [], invoices: [], cashbook: [], personalcash: [] };
 
-        // --- Core: Universal Save Function ---
-        async function simpanKeDatabase(tableName, tableData, btnElement = null) {
-            if (btnElement) {
-                btnElement.dataset.original = btnElement.innerText;
-                btnElement.innerText = "Menyimpan...";
-                btnElement.disabled = true;
-            }
-            try {
-                await fetch(API_URL, { method: 'POST', body: JSON.stringify({ tableName: tableName, data: tableData }) });
-            } catch (error) {
-                alert(`Gagal menyimpan data ke ${tableName}. Pastikan internet stabil.`);
-            } finally {
-                if (btnElement) {
-                    btnElement.innerText = btnElement.dataset.original;
-                    btnElement.disabled = false;
-                }
-            }
-        }
-
-        // --- Navigasi ---
+        // 1. Fungsi Navigasi Halaman
         function showPage(pageId) {
             document.querySelectorAll('.page-section').forEach(el => el.classList.add('hidden'));
             document.getElementById('page-' + pageId).classList.remove('hidden');
@@ -197,156 +123,137 @@
             event.currentTarget.classList.add('bg-indigo-700', 'font-bold');
         }
 
-        // --- Jam Realtime ---
-        setInterval(() => {
-            const jam = document.getElementById('jam-digital');
-            if(jam) jam.innerText = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB';
-        }, 1000);
+        // 2. Fungsi Jam Real-Time
+        function updateJam() {
+            const jamElement = document.getElementById('jam-digital');
+            if (jamElement) {
+                const waktu = new Date();
+                jamElement.innerText = waktu.toLocaleTimeString('id-ID', {
+                    hour: '2-digit', minute: '2-digit', second: '2-digit'
+                }) + ' WIB';
+            }
+        }
+        setInterval(updateJam, 1000);
+        updateJam();
 
-        // --- Load Database Utama ---
-        window.onload = async function() {
+        // 3. Ambil Data dari Google Sheets saat Web Dibuka
+        async function loadDatabase() {
+            const statusText = document.getElementById('status-koneksi');
             try {
                 const response = await fetch(API_URL);
                 const data = await response.json();
                 db = { ...db, ...data };
-                document.getElementById('status-koneksi').innerText = "🟢 Database Terhubung";
-                document.getElementById('status-koneksi').classList.replace('text-yellow-400', 'text-green-400');
                 
-                renderAll();
+                statusText.innerText = "🟢 Database Terhubung";
+                statusText.classList.replace('text-yellow-400', 'text-green-400');
+                
+                renderAntreanDesain();
+                renderUsers();
             } catch (error) {
-                document.getElementById('status-koneksi').innerText = "🔴 Gagal Terhubung Database";
-                document.getElementById('status-koneksi').classList.replace('text-yellow-400', 'text-red-500');
+                statusText.innerText = "🔴 Gagal Terhubung Database";
+                statusText.classList.replace('text-yellow-400', 'text-red-500');
+                console.error("Error mengambil data:", error);
             }
         }
 
-        function renderAll() {
-            renderAntrean();
-            renderUsers();
-            renderBalances();
-            renderBills();
-        }
-
-        // --- Fitur Dasbor (Antrean) ---
-        function renderAntrean() {
-            const tbody = document.getElementById('tabel-antrean');
+        // 4. Render Tabel Antrean
+        function renderAntreanDesain() {
+            const tbody = document.getElementById('tabel-antrean-desain');
+            // Filter invoice yang belum selesai
             const antrean = db.invoices.filter(inv => inv.status !== 'Selesai');
+
             if (antrean.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-green-600 bg-green-50 font-bold">Semua pesanan selesai!</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center font-semibold text-green-600 bg-green-50">Hebat! Semua pesanan sudah selesai atau belum ada pesanan masuk.</td></tr>`;
                 return;
             }
+
             tbody.innerHTML = '';
             antrean.forEach(inv => {
                 tbody.innerHTML += `
-                    <tr class="border-b hover:bg-gray-50">
+                    <tr class="border-b hover:bg-gray-50 transition">
                         <td class="p-4 font-bold text-indigo-600">${inv.invoiceNumber || '-'}</td>
                         <td class="p-4">${inv.customerName || '-'}</td>
-                        <td class="p-4"><span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded font-bold text-xs uppercase">${inv.status || 'Pending'}</span></td>
-                        <td class="p-4"><button class="bg-indigo-500 text-white px-3 py-1 rounded shadow text-sm hover:bg-indigo-600">Kerjakan</button></td>
-                    </tr>`;
+                        <td class="p-4">
+                            <span class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-extrabold uppercase tracking-wide">
+                                ${inv.status || 'Pending'}
+                            </span>
+                        </td>
+                        <td class="p-4">
+                            <button class="bg-indigo-500 text-white px-4 py-1.5 rounded text-sm font-semibold shadow hover:bg-indigo-600 transition">Kerjakan</button>
+                        </td>
+                    </tr>
+                `;
             });
         }
 
-        // --- Fitur Pengaturan (User) ---
+        // 5. Render Tabel Users
         function renderUsers() {
             const tbody = document.getElementById('tabel-users');
-            tbody.innerHTML = db.users.length === 0 ? `<tr><td colspan="3" class="p-4 text-center">Belum ada akun.</td></tr>` : '';
+            if (db.users.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-500">Belum ada akun terdaftar.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = '';
             db.users.forEach(user => {
                 tbody.innerHTML += `
-                    <tr class="border-b">
-                        <td class="p-4 font-semibold">${user.username}</td>
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-4 font-semibold text-gray-800">${user.username}</td>
                         <td class="p-4 font-mono text-gray-500">••••••••</td>
-                        <td class="p-4"><span class="px-2 py-1 border rounded text-xs font-bold uppercase ${user.role === 'Owner' ? 'bg-indigo-100 border-indigo-300 text-indigo-800' : 'bg-green-100 border-green-300 text-green-800'}">${user.role}</span></td>
-                    </tr>`;
+                        <td class="p-4">
+                            <span class="${user.role === 'Owner' ? 'bg-indigo-100 text-indigo-800 border-indigo-300' : 'bg-emerald-100 text-emerald-800 border-emerald-300'} border px-3 py-1 rounded text-xs font-bold uppercase">
+                                ${user.role}
+                            </span>
+                        </td>
+                    </tr>
+                `;
             });
         }
 
-        async function simpanUserBaru(btn) {
+        // 6. Simpan User Baru ke Google Sheets
+        async function simpanUserBaru() {
             const username = document.getElementById('newUser').value;
             const pass = document.getElementById('newPass').value;
             const role = document.getElementById('newRole').value;
-            if(!username || !pass) return alert("Isi Username & Password!");
 
-            db.users.push({ id: new Date().getTime(), username, password: pass, role });
-            renderUsers();
-            document.getElementById('newUser').value = ''; document.getElementById('newPass').value = '';
+            if(!username || !pass) return alert("Username dan Password wajib diisi!");
             
-            await simpanKeDatabase('users', db.users, btn);
-            alert("Akun tersimpan!");
-        }
+            const btn = event.target;
+            btn.innerText = "Menyimpan...";
+            btn.disabled = true;
 
-        // --- Fitur Kas Pribadi (Saldo & Tagihan) ---
-        function renderBalances() {
-            // Default 0
-            ['CASH', 'BCA', 'BRI'].forEach(acc => document.getElementById(`saldo-${acc}`).innerText = "Rp 0");
-            // Timpa dengan data dari database
-            db.balances.forEach(b => {
-                const el = document.getElementById(`saldo-${b.account}`);
-                if(el) el.innerText = formatRp(b.amount);
-            });
-        }
+            const newUser = {
+                id: new Date().getTime(),
+                username: username,
+                password: pass,
+                role: role
+            };
 
-        async function updateSaldo(account) {
-            let nominalStr = prompt(`Masukkan total Saldo Terkini untuk ${account} (Tanpa titik/koma):`, "0");
-            if(nominalStr === null) return;
-            let nominal = parseInt(nominalStr.replace(/\D/g, '')) || 0;
+            db.users.push(newUser);
+            renderUsers(); // Update tampilan lokal dulu
 
-            let index = db.balances.findIndex(b => b.account === account);
-            if(index > -1) {
-                db.balances[index].amount = nominal;
-            } else {
-                db.balances.push({ id: new Date().getTime(), account: account, amount: nominal });
-            }
-            
-            renderBalances();
-            await simpanKeDatabase('balances', db.balances);
-        }
-
-        function renderBills() {
-            const tbody = document.getElementById('tabel-bills');
-            tbody.innerHTML = db.monthlybills.length === 0 ? `<tr><td colspan="4" class="p-4 text-center">Belum ada tagihan bulanan.</td></tr>` : '';
-            db.monthlybills.forEach(bill => {
-                let statusColor = bill.status === 'Lunas' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
-                tbody.innerHTML += `
-                    <tr class="border-b">
-                        <td class="p-3 font-semibold">${bill.name}</td>
-                        <td class="p-3 font-bold">${formatRp(bill.amount)}</td>
-                        <td class="p-3"><span class="px-2 py-1 rounded text-xs font-bold ${statusColor}">${bill.status}</span></td>
-                        <td class="p-3">
-                            <button onclick="lunasiTagihan(${bill.id})" class="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600 ${bill.status === 'Lunas' ? 'hidden' : ''}">Tandai Lunas</button>
-                            <button onclick="hapusTagihan(${bill.id})" class="bg-gray-500 text-white px-2 py-1 rounded text-xs hover:bg-gray-600">Hapus</button>
-                        </td>
-                    </tr>`;
-            });
-        }
-
-        async function tambahTagihan(btn) {
-            const name = document.getElementById('billName').value;
-            const amount = parseInt(document.getElementById('billAmount').value);
-            if(!name || !amount) return alert("Isi Nama & Nominal Tagihan!");
-
-            db.monthlybills.push({ id: new Date().getTime(), name, amount, status: 'Belum Dibayar' });
-            renderBills();
-            document.getElementById('billName').value = ''; document.getElementById('billAmount').value = '';
-            
-            await simpanKeDatabase('monthlybills', db.monthlybills, btn);
-        }
-
-        async function lunasiTagihan(id) {
-            let bill = db.monthlybills.find(b => b.id === id);
-            if(bill) {
-                bill.status = 'Lunas';
-                renderBills();
-                await simpanKeDatabase('monthlybills', db.monthlybills);
+            try {
+                await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        tableName: 'users',
+                        data: db.users
+                    })
+                });
+                alert('Akun berhasil dibuat dan tersimpan ke Database!');
+                document.getElementById('newUser').value = '';
+                document.getElementById('newPass').value = '';
+            } catch (error) {
+                alert('Gagal menyimpan ke database Google Sheets.');
+                console.error(error);
+            } finally {
+                btn.innerText = "+ Simpan Akun";
+                btn.disabled = false;
             }
         }
 
-        async function hapusTagihan(id) {
-            if(confirm('Hapus tagihan ini?')) {
-                db.monthlybills = db.monthlybills.filter(b => b.id !== id);
-                renderBills();
-                await simpanKeDatabase('monthlybills', db.monthlybills);
-            }
-        }
+        // Jalankan fetch data saat halaman pertama kali dibuka
+        window.onload = loadDatabase;
 
     </script>
 </body>
