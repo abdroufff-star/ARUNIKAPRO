@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ARUNIKA PRO</title>
+    <title>ARUNIKA Print POS</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -24,7 +24,7 @@
 
     <script type="text/babel">
         // =======================================================================
-        // PASTE LINK URL DARI GOOGLE APPS SCRIPT ANDA DI ANTARA TANDA KUTIP INI:
+        // PASTE LINK URL DARI GOOGLE APPS SCRIPT ANDA DI BAWAH INI:
         const API_URL = "https://script.google.com/macros/s/AKfycbwMe";
         // =======================================================================
 
@@ -39,7 +39,6 @@
             return phone.startsWith('0') ? '62' + phone.substring(1) : phone;
         };
 
-        // HELPER UNTUK NOMOR NOTA BERURUTAN
         const displayNota = (inv) => {
             if (inv && inv.notaSeq) return `INV-${inv.notaSeq.toString().padStart(5, '0')}`;
             if (inv && inv.id) return `INV-${inv.id.toString().slice(-6)}`;
@@ -86,12 +85,12 @@
             const [showBroadcast, setShowBroadcast] = useState(false);
             const [broadcastMsg, setBroadcastMsg] = useState('Halo Kak,\n\nKami dari *ARUNIKA Creative* sedang mengadakan PROMO spesial lho!\n\nDapatkan diskon khusus untuk cetak kebutuhan bisnis dan pribadimu.\n\nYuk buruan diorder sebelum kehabisan! Terima kasih 🙏');
 
-            // Form Produk (DIPERBARUI)
+            // Form Produk 
             const [prodName, setProdName] = useState('');
             const [prodPrice, setProdPrice] = useState('');
             const [prodModal, setProdModal] = useState('');
-            const [prodUnit, setProdUnit] = useState('Pcs'); // State Satuan Produk
-            const [editProdId, setEditProdId] = useState(null); // State Edit Produk
+            const [prodUnit, setProdUnit] = useState('Pcs');
+            const [editProdId, setEditProdId] = useState(null); 
 
             // Form Invoice
             const [invCustomer, setInvCustomer] = useState('');
@@ -124,6 +123,7 @@
             const [rekapStatus, setRekapStatus] = useState('Semua');
 
             useEffect(() => {
+                // Muat data lokal sementara jika ada, sambil menunggu data dari Google Sheets (Agar tidak blank)
                 const localData = {
                     products: JSON.parse(localStorage.getItem('arunika_products')) || [],
                     customers: JSON.parse(localStorage.getItem('arunika_customers')) || [],
@@ -132,29 +132,32 @@
                     personalcash: JSON.parse(localStorage.getItem('arunika_personal_cash')) || []
                 };
 
-                setProducts(localData.products);
-                setCustomers(localData.customers);
-                setInvoices(localData.invoices);
-                setCashBook(localData.cashbook);
-                setPersonalCashBook(localData.personalcash);
+                if (localData.products.length > 0) setProducts(localData.products);
+                if (localData.customers.length > 0) setCustomers(localData.customers);
+                if (localData.invoices.length > 0) setInvoices(localData.invoices);
+                if (localData.cashbook.length > 0) setCashBook(localData.cashbook);
+                if (localData.personalcash.length > 0) setPersonalCashBook(localData.personalcash);
 
-                if (API_URL === "ISI_DENGAN_LINK_API_GOOGLE_APPS_SCRIPT_ANDA_DI_SINI" || API_URL === "") {
+                if (API_URL === "ISI_DENGAN_LINK_API_YANG_ANDA_COPY_DARI_TAHAP_2_DISINI" || API_URL === "") {
                     setIsLoading(false);
                     return;
                 }
 
+                // Ambil data terbaru dari Google Sheets
                 fetch(API_URL)
                     .then(res => res.json())
                     .then(data => {
                         if(data.users && data.users.length > 0) setUsers(data.users);
-                        if(data.products) setProducts(data.products);
-                        if(data.customers) setCustomers(data.customers);
-                        if(data.invoices) setInvoices(data.invoices);
-                        if(data.cashbook) setCashBook(data.cashbook);
+                        if(data.products) { setProducts(data.products); localStorage.setItem('arunika_products', JSON.stringify(data.products)); }
+                        if(data.customers) { setCustomers(data.customers); localStorage.setItem('arunika_customers', JSON.stringify(data.customers)); }
+                        if(data.invoices) { setInvoices(data.invoices); localStorage.setItem('arunika_invoices', JSON.stringify(data.invoices)); }
+                        if(data.cashbook) { setCashBook(data.cashbook); localStorage.setItem('arunika_cashbook', JSON.stringify(data.cashbook)); }
+                        if(data.personalcash) { setPersonalCashBook(data.personalcash); localStorage.setItem('arunika_personal_cash', JSON.stringify(data.personalcash)); }
                         setIsLoading(false);
+                        showToast('Database Tersinkronisasi', 'success');
                     })
                     .catch(err => {
-                        showToast('Database belum siap, beralih ke Mode Offline.', 'error');
+                        showToast('Gagal terhubung ke Database, menggunakan data lokal.', 'error');
                         setIsLoading(false);
                     });
             }, []);
@@ -164,14 +167,30 @@
                 setTimeout(() => setToast(null), 3000);
             };
 
+            // FUNGSI SINKRONISASI DIPERBARUI UNTUK GOOGLE SHEETS
             const syncData = (tableName, updatedData) => {
+                // 1. Update State Visual React
                 if(tableName === 'customers') setCustomers(updatedData);
                 if(tableName === 'products') setProducts(updatedData);
                 if(tableName === 'invoices') setInvoices(updatedData);
                 if(tableName === 'cashbook') setCashBook(updatedData);
                 if(tableName === 'personalcash') setPersonalCashBook(updatedData);
 
+                // 2. Simpan cadangan offline
                 localStorage.setItem('arunika_' + tableName, JSON.stringify(updatedData));
+
+                // 3. Kirim ke Google Sheets via POST
+                if (API_URL && API_URL !== "ISI_DENGAN_LINK_API_YANG_ANDA_COPY_DARI_TAHAP_2_DISINI") {
+                    fetch(API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            tableName: tableName,
+                            data: updatedData
+                        })
+                    }).catch(err => {
+                        console.error("Gagal sinkron data ke Google Sheets", err);
+                    });
+                }
             };
 
             const getSaldo = (source) => cashBook.filter(c => c.source === source).reduce((acc, curr) => curr.type === 'Masuk' ? acc + curr.amount : acc - curr.amount, 0);
@@ -314,7 +333,6 @@
                 }
             };
 
-            // FUNGSI PRODUK (TAMBAH, EDIT, HAPUS)
             const handleAddProduct = () => {
                 if(!prodName || !prodPrice) return showToast('Isi nama dan harga jual!');
                 if (editProdId) {
@@ -505,7 +523,7 @@
                 return (
                     <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-4">
                         <div className="w-16 h-16 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                        <h2 className="text-xl font-bold text-gray-700">Menyiapkan Aplikasi...</h2>
+                        <h2 className="text-xl font-bold text-gray-700">Menyinkronkan dengan Database...</h2>
                     </div>
                 );
             }
@@ -1067,7 +1085,7 @@
                                                 if(p){ 
                                                     setSelHarga(p.price); 
                                                     setSelModal(p.modal); 
-                                                    if(p.unit) setSelType(p.unit);
+                                                    if(p.unit) setSelType(p.unit); // Otomatis ubah satuan
                                                 }
                                             }} className="p-3 border rounded-lg bg-white w-full focus:ring-2 focus:ring-amber-500 outline-none font-medium">
                                                 <option value="">-- Pilih Produk --</option>
